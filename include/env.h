@@ -47,6 +47,16 @@ extern struct Env *curenv;		     // the current env
 extern struct Env_sched_list env_sched_list; // runnable env list
 
 void env_create_envs(Pte *kpagetable);
+u_int mkenvid(struct Env *e);
+int envid2env(u_int envid, struct Env **penv, int checkperm);
+void env_init(void);
+int env_alloc(struct Env **new, u_int parent_id);
+struct Env *env_create(const void *binary, size_t size, int priority);
+void env_free(struct Env *e);
+void env_destroy(struct Env *e);
+void env_run(struct Env *e);
+
+
 
 #define ENV_CREATE_PRIORITY(x, y)                                                                  \
 	({                                                                                         \

@@ -1,0 +1,1 @@
+targets             := elfloader.o print.o string.o

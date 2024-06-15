@@ -6,6 +6,8 @@
 #include <vm.h>
 #include <error.h>
 #include <registers.h>
+#include <sched.h>
+#include <queue.h>
 
 //extern Pte *kernel_pagetable;
 
@@ -25,6 +27,7 @@ static u_int asid_bitmap[NASID / 32] = {0};
 //each env struct holds a page,
 //taking up a total of NENV * PAGE_SIZE = 0x400000 size of physical space.
 void env_create_envs(Pte *kpagetable) {
+    printk("enter env_create_envs\n");
     struct Env *e;
     for (e = envs; e < &envs[NENV]; e++) {
         char *pa = kalloc();
@@ -34,6 +37,7 @@ void env_create_envs(Pte *kpagetable) {
         //map to kernel high virtual address
         u_long va = ENVS((int) (e - envs));
         kvmmap(kpagetable, va, (u_long)pa, PAGE_SIZE, PTE_R | PTE_W);
+        //printk("%x\n", e);
     }
 }
 
@@ -143,6 +147,7 @@ int envid2env(u_int envid, struct Env **penv, int checkperm) {
  *   You may use these macro definitions below: 'LIST_INIT', 'TAILQ_INIT', 'LIST_INSERT_HEAD'
  */
 void env_init(void) {
+    printk("enter env init\n");
 	int i;
 	/* Step 1: Initialize 'env_free_list' with 'LIST_INIT' and 'env_sched_list' with
 	 * 'TAILQ_INIT'. */
@@ -250,12 +255,13 @@ int env_alloc(struct Env **new, u_int parent_id) {
  */
 static int load_icode_mapper(void *data, u_long va, size_t offset, u_int perm, const void *src,
 			     size_t len) {
-	struct Env *env = (struct Env *)data;
+	printk("enter load_icode_mapper\n");
+    struct Env *env = (struct Env *)data;
 	u_long pa;
 	int r;
 
 	/* Step 1: Allocate a page. */
-	pa = kalloc();
+	pa = (u_long)kalloc();
 
 	/* Step 2: If 'src' is not NULL, copy the 'len' bytes started at 'src' into 'offset' at this
 	 * page. */
@@ -264,6 +270,7 @@ static int load_icode_mapper(void *data, u_long va, size_t offset, u_int perm, c
 	}
 
 	/* Step 3: Insert 'p' into 'env->env_pgdir' at 'va' with 'perm'. */
+    printk("env_pgtable: %x, va: %x\n", env->env_pgtable, va);
     return mappages(env->env_pgtable, va, PAGE_SIZE, pa, perm);
 }
 
@@ -274,7 +281,8 @@ static int load_icode_mapper(void *data, u_long va, size_t offset, u_int perm, c
  */
 static void load_icode(struct Env *e, const void *binary, size_t size) {
 	/* Step 1: Use 'elf_from' to parse an ELF header from 'binary'. */
-	const Elf32_Ehdr *ehdr = elf_from(binary, size);
+    printk("enter load icode\n");
+	const Elf64_Ehdr *ehdr = elf_from(binary, size);
 	if (!ehdr) {
 		panic("load icode: bad elf");
 	}
@@ -283,17 +291,21 @@ static void load_icode(struct Env *e, const void *binary, size_t size) {
 	 * As a loader, we just care about loadable segments, so parse only program headers here.
 	 */
 	size_t ph_off;
+    printk("ehdr->e_phnum: %d\n", ehdr->e_phnum);
 	ELF_FOREACH_PHDR_OFF (ph_off, ehdr) {
-		Elf32_Phdr *ph = (Elf32_Phdr *)(binary + ph_off);
+		Elf64_Phdr *ph = (Elf64_Phdr *)(binary + ph_off);
+        printk("ph->p_type: %d\n", ph->p_type);
 		if (ph->p_type == PT_LOAD) {
 			// 'elf_load_seg' is defined in lib/elfloader.c
 			// 'load_icode_mapper' defines the way in which a page in this segment
 			// should be mapped.
-			panic_on(elf_load_seg(ph, binary + ph->p_offset, load_icode_mapper, e));
+            printk("load!!!\n");
+			elf_load_seg(ph, binary + ph->p_offset, load_icode_mapper, e);
 		}
 	}
 
 	/* Step 3: Set 'e->env_tf.cp0_epc' to 'ehdr->e_entry'. */
+    printk("e_entry: %x\n", ehdr->e_entry);
 	e->env_tf.sepc = ehdr->e_entry;
 
 }
@@ -307,6 +319,7 @@ static void load_icode(struct Env *e, const void *binary, size_t size) {
  *   'binary' is an ELF executable image in memory.
  */
 struct Env *env_create(const void *binary, size_t size, int priority) {
+    printk("enter env create1\n");
 	struct Env *e;
 	/* Step 1: Use 'env_alloc' to alloc a new env, with 0 as 'parent_id'. */
 	env_alloc(&e, 0);
@@ -317,6 +330,7 @@ struct Env *env_create(const void *binary, size_t size, int priority) {
 	 * 'env_sched_list' using 'TAILQ_INSERT_HEAD'. */
 	load_icode(e, binary, size);
 	TAILQ_INSERT_HEAD(&env_sched_list, e, env_sched_link);
+    printk("env in sche list head: %x\n", TAILQ_FIRST(&env_sched_list));
 	return e;
 }
 
@@ -324,8 +338,6 @@ struct Env *env_create(const void *binary, size_t size, int priority) {
  *  Free env e and all memory it uses.
  */
 void env_free(struct Env *e) {
-	Pte *pt;
-	u_int pdeno, pteno, pa;
 
 	/* Hint: Note the environment's demise.*/
 	printk("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
@@ -376,7 +388,10 @@ extern void env_pop_tf(struct Trapframe *tf) __attribute__((noreturn));
  *   You may use these functions: 'env_pop_tf'.
  */
 void env_run(struct Env *e) {
-	assert(e->env_status == ENV_RUNNABLE);
+	printk("enter env_run\n");
+	if (e->env_status != ENV_RUNNABLE) {
+        panic("env_run: not runnable env!\n");
+    }
 	// WARNING BEGIN: DO NOT MODIFY FOLLOWING LINES!
 #ifdef MOS_PRE_ENV_RUN
 	MOS_PRE_ENV_RUN_STMT
@@ -397,19 +412,13 @@ void env_run(struct Env *e) {
 	curenv->env_runs++; // lab6
 
 	/* Step 3: Change 'cur_pgdir' to 'curenv->env_pgdir', switching to its address space. */
-	sfence_vma();
+	//sfence_vma();
     w_satp(MAKE_SATP(curenv->env_pgtable));
     sfence_vma();
 
 	/* Step 4: Use 'env_pop_tf' to restore the curenv's saved context (registers) and return/go
 	 * to user mode.
-	 *
-	 * Hint:
-	 *  - You should use 'curenv->env_asid' here.
-	 *  - 'env_pop_tf' is a 'noreturn' function: it restores PC from 'cp0_epc' thus not
-	 *    returning to the kernel caller, making 'env_run' a 'noreturn' function as well.
 	 */
 	
 	env_pop_tf(&(curenv->env_tf));
-
 }

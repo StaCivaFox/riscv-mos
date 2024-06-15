@@ -1,9 +1,9 @@
 #include <elf.h>
 #include <pmap.h>
 
-const Elf32_Ehdr *elf_from(const void *binary, size_t size) {
-	const Elf32_Ehdr *ehdr = (const Elf32_Ehdr *)binary;
-	if (size >= sizeof(Elf32_Ehdr) && ehdr->e_ident[EI_MAG0] == ELFMAG0 &&
+const Elf64_Ehdr *elf_from(const void *binary, size_t size) {
+	const Elf64_Ehdr *ehdr = (const Elf64_Ehdr *)binary;
+	if (size >= sizeof(Elf64_Ehdr) && ehdr->e_ident[EI_MAG0] == ELFMAG0 &&
 	    ehdr->e_ident[EI_MAG1] == ELFMAG1 && ehdr->e_ident[EI_MAG2] == ELFMAG2 &&
 	    ehdr->e_ident[EI_MAG3] == ELFMAG3 && ehdr->e_type == 2) {
 		return ehdr;
@@ -22,13 +22,14 @@ const Elf32_Ehdr *elf_from(const void *binary, size_t size) {
  *   Return 0 if success. Otherwise return < 0.
  *   If success, the entry point of `binary` will be stored in `start`
  */
-int elf_load_seg(Elf32_Phdr *ph, const void *bin, elf_mapper_t map_page, void *data) {
+int elf_load_seg(Elf64_Phdr *ph, const void *bin, elf_mapper_t map_page, void *data) {
+	printk("enter elf load seg\n");
 	u_long va = ph->p_vaddr;
 	size_t bin_size = ph->p_filesz;
 	size_t sgsize = ph->p_memsz;
-	u_int perm = PTE_V;
+	u_int perm = PTE_V | PTE_R | PTE_X | PTE_U;
 	if (ph->p_flags & PF_W) {
-		perm |= PTE_D;
+		perm |= PTE_W;
 	}
 
 	int r;

@@ -5,6 +5,8 @@
 #include <registers.h>
 #include <trap.h>
 #include <timer.h>
+#include <env.h>
+#include <sched.h>
 
 extern u_long HEAP_START;
 extern u_long HEAP_SIZE;
@@ -38,12 +40,19 @@ void rv_main(void) {
     printk("turn on paging\n");
     trapinit();
     printk("init trap\n");
-    timerinit();
-    printk("init timer\n");
-    asm volatile (
+    /*timerinit();
+    printk("init timer\n");*/
+    /*asm volatile (
         "ebreak"
     );
-    printk("return from trap\n");
+    printk("return from trap\n");*/
+
+    env_init();
+	ENV_CREATE_PRIORITY(user_bare_loop, 1);
+	ENV_CREATE_PRIORITY(user_bare_loop, 2);
+    timerinit();
+    printk("init timer\n");
+    //schedule(0);
    // printk("init trap\n");
     //while (1);
 }

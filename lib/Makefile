@@ -1,6 +1,7 @@
+
 INCLUDES    := -I../include/
 
-targets     := print.o string.o
+targets     := print.o string.o elfloader.o
 
 %.o: %.c
 	riscv64-unknown-elf-gcc  --std=gnu99 -fno-pic -ffreestanding \

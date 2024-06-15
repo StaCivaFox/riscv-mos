@@ -22,11 +22,12 @@ void timer_set_next_event() {
 }
 
 void do_timer() {
-    //printk("do timer\n");
+    printk("do timer\n");
     timer_set_next_event();
     ticks += 1;
     if (ticks == 100) {
         ticks = 0;
         printk("--100 ticks!--\n");
     }
+    printk("out from timer\n");
 }

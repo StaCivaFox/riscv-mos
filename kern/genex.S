@@ -84,8 +84,10 @@ handle_ebreak:
 .globl handle_s_int
 .align 2
 handle_s_int:       #to be altered for scheduling
-    mv a0, sp
-    addi sp, sp, -16
-    jal do_timer
-    addi sp, sp, 16
-    j ret_from_exception
+    #mv a0, sp
+    #addi sp, sp, -16
+    #jal do_timer
+    #addi sp, sp, 16
+    #j ret_from_exception
+    li a0, 0
+    j schedule

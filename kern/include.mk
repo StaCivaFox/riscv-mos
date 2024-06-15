@@ -1,6 +1,6 @@
 #lab-ge = $(shell [ "$$(echo $(lab)_ | cut -f1 -d_)" -ge $(1) ] && echo true)
 
-targets             := machine.o printk.o phypage.o vm.o traps.o genex.o kexcentry.o timer.o sbi.o env.o #panic.o 
+targets             := machine.o printk.o phypage.o vm.o traps.o genex.o kexcentry.o timer.o sbi.o env.o sched.o env_asm.o #panic.o 
 
 #ifeq ($(call lab-ge,2), true)
 #	targets     += pmap.o tlb_asm.o tlbex.o
